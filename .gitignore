@@ -1,0 +1,23 @@
+# IDE files
+.idea
+.vscode
+.history
+
+# Macos Files
+.DS_Store
+
+# Rust files
+target
+
+# Python files
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+allure-results/
