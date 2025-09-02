@@ -38,10 +38,10 @@ $ docker build . -t bpfmeter
 To run the agent:
 
 ```shell
-$ bpfmeter run -p 30s -o outdir/
+$ bpfmeter run -o outdir/
 ```
 
-The arguments specify the measurement period and the output directory where CSV files will be saved once the agent is stopped. By default, the tool starts monitoring all loaded eBPF programs. Users can specify particular eBPF program IDs using the `-b` option to track specific instances.
+The arguments specify the measurement period and the output directory where CSV files will be saved once the agent is stopped. By default, the tool starts monitoring all loaded eBPF programs. Users can specify particular eBPF program IDs using the `-p` option to track specific instances.
 
 Example of a generated CSV:
 
@@ -69,7 +69,7 @@ The resulting plot(s) will be saved in the `svgdir` directory. Example:
 The agent implements a Prometheus client interface to export metrics in OpenMetrics format to monitoring systems. If the agent was built using the container image, it can be launched as follows:
 
 ```shell
-$ docker run --rm -it -p 9100:9100 --cap-add=CAP_SYS_ADMIN bpfmeter run --labels group=rndsec,system=bpfmeter,env=test,dc=ds -b 92 -p 30s -P 9100
+$ docker run --rm -it -p 9100:9100 --cap-add=CAP_SYS_ADMIN bpfmeter run --labels group=rndsec,system=bpfmeter,env=test,dc=ds -P 9100
 ```
 
 If no output directory is specified, the agent automatically starts the Prometheus client on the given port. Along with CPU usage metrics, the labels provided in the command-line arguments will be sent.
