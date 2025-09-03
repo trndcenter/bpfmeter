@@ -10,8 +10,7 @@ static BPF_TRACE: Mutex<Option<BpfTrace>> = Mutex::new(None);
 
 const BPF_PROG_SYSCALL_TRACEPOINT: &str = "sys_enter_openat";
 
-//#[ctor::ctor]
-#[allow(dead_code)] // fix linter for now
+#[ctor::ctor]
 fn wait_bpftrace_start() {
     let Ok(bpftrace) = which::which("bpftrace") else {
         panic!("bpftrace is not installed");

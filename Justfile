@@ -25,6 +25,11 @@ build:
     @echo "-> Building all crates"
     @cargo build --workspace
 
+# Выполняет сборку всех крейтов
+build-release:
+    @echo "-> Building all crates"
+    @cargo build --release --workspace
+
 # Запускает все тесты
 test:
     @echo "-> Running tests"

@@ -11,7 +11,6 @@ mod common;
 static EXE_BPFMETER: &str = env!("CARGO_BIN_EXE_bpfmeter");
 
 #[test]
-#[ignore]
 fn test_cpu_measurement() {
     let port = get_next_port();
     let mut child = Command::new(EXE_BPFMETER)
@@ -61,7 +60,6 @@ fn test_cpu_measurement() {
 }
 
 #[test]
-#[ignore]
 fn test_map_measurement() {
     let port = get_next_port();
     let mut child = Command::new(EXE_BPFMETER)

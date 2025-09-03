@@ -1,0 +1,33 @@
+---
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - "main"
+jobs:
+  ubuntu-24_04:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cargo-bins/cargo-binstall@main
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: clippy rustfmt rust-src
+      - uses: extractions/setup-just@v3
+      - run: cargo binstall -y bpf-linker
+      - run: |
+          sudo apt update && sudo apt  --no-install-recommends install -y pkg-config \
+            libfreetype-dev libfontconfig1-dev bpftrace
+
+      - name: Linting
+        run: |
+          just lint
+          just check 
+      - name: Build release
+        run: |
+          just build-release
+      - name: Run tests
+        run: |
+          sudo -E env "PATH=$PATH" just test
