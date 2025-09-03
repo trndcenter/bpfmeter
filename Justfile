@@ -1,40 +1,39 @@
 export RUSTFLAGS := "-D warnings"
 export RUSTDOCFLAGS := "-D warnings"
 
-# Список доступных команд
+# List of available commands
 help:
     @just --list
 
-# Форматирование исходного кода
+# Format source code
 fmt:
     @echo "-> Formatting code"
     @cargo fmt --all
 
-# Выполняет быстрые проверки исходного кода на соответствие стандартам оформления
+# Performs quick checks of source code for compliance with formatting standards
 check:
     @echo "-> Checking code format"
     @cargo fmt --all -- --check
 
-# Выполняет более подробные проверки качества кода
+# Performs more detailed code quality checks
 lint:
     @echo "-> Checking code style"
     @cargo clippy --workspace
 
-# Выполняет сборку всех крейтов
+# Builds all crates
 build:
     @echo "-> Building all crates"
     @cargo build --workspace
 
-# Выполняет сборку всех крейтов
+# Builds all crates
 build-release:
     @echo "-> Building all crates"
     @cargo build --release --workspace
 
-# Запускает все тесты
+# Runs all tests
 test:
     @echo "-> Running tests"
     @cargo test --workspace
 
-# Выполняет полную проверку кода перед пушем в репозиторий
+# Performs full code check before pushing to repository
 prepare: check lint test
-
