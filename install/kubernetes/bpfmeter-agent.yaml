@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: bpfmeter
+  namespace: bpfmeter
+  labels:
+    app: bpfmeter
+spec:
+  selector:
+    matchLabels:
+      app: bpfmeter
+  template:
+    metadata:
+      labels:
+        app: bpfmeter
+    spec:
+      containers:
+        - name: bpfmeter
+          image: ghcr.io/trndcenter/bpfmeter:v0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "run"
+            - "--labels=system=bpfmeter"
+            - "--export-types=run-time,event-count"
+          ports:
+            - containerPort: 9100
+          securityContext:
+            privileged: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bpfmeter-service
+spec:
+  selector:
+    app: bpfmeter
+  ports:
+    - protocol: TCP
+      port: 9100
+      targetPort: 9100
+  type: ClusterIP
