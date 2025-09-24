@@ -20,20 +20,37 @@ lint:
     @echo "-> Checking code style"
     @cargo clippy --workspace
 
-# Builds all crates
+# Builds crate
 build:
     @echo "-> Building all crates"
     @cargo build --workspace
 
-# Builds all crates
+# Builds crate without default features
+build-minimized:
+    @echo "-> Building all crates"
+    @cargo build --workspace --no-default-features
+
+# Builds release crate
 build-release:
     @echo "-> Building all crates"
     @cargo build --release --workspace
+
+# Builds release crate without default features
+build-release-minimized:
+    @echo "-> Building all crates"
+    @cargo build --release --workspace --no-default-features
 
 # Runs all tests
 test:
     @echo "-> Running tests"
     @cargo test --workspace
+
+# Update version
+update-version old new:
+    @echo "-> Updating version to {{new}}"
+    @sed -i "s/version = \"{{old}}\"/version = \"{{new}}\"/g" bpfmeter/Cargo.toml
+    @sed -i "s/bpfmeter:v{{old}}/bpfmeter:v{{new}}/g" README.md
+    @sed -i "s/bpfmeter:v{{old}}/bpfmeter:v{{new}}/g" install/kubernetes/bpfmeter-agent.yaml
 
 # Performs full code check before pushing to repository
 prepare: check lint test
