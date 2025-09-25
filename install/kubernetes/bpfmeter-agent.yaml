@@ -30,7 +30,9 @@ spec:
           ports:
             - containerPort: 9100
           securityContext:
-            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
 ---
 apiVersion: v1
 kind: Service
