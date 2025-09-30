@@ -20,6 +20,7 @@ use prometheus_client::{
 };
 use tokio::sync::Mutex;
 
+use crate::exporter::prometheus_gc::PromGC;
 use crate::exporter::{BpfStatsInfo, Exporter};
 use crate::meter::BpfInfo;
 
@@ -28,14 +29,22 @@ use crate::meter::BpfInfo;
 pub struct PrometheusExporter {
     /// Static labels to be added to all metrics
     static_lables: Labels,
+    /// Metrics to be exported
+    metrics: EBPFMetrics,
+    /// Garbage collector for prometheus metrics
+    gc: Option<PromGC>,
+}
+
+#[derive(Debug, Default)]
+pub struct EBPFMetrics {
     /// Map of bpf program ids to cpu usage
-    cpu_usage: Family<Labels, Gauge<f32, AtomicU32>>,
+    pub cpu_usage: Family<Labels, Gauge<f32, AtomicU32>>,
     /// Map of bpf program ids to run time
-    run_time: Family<Labels, Gauge<f32, AtomicU32>>,
+    pub run_time: Family<Labels, Gauge<f32, AtomicU32>>,
     /// Map of bpf program ids to event count
-    event_count: Family<Labels, Gauge<u64, AtomicU64>>,
+    pub event_count: Family<Labels, Gauge<u64, AtomicU64>>,
     /// Map of bpf program ids to map size
-    map_size: Family<Labels, Gauge<u32, AtomicU32>>,
+    pub map_size: Family<Labels, Gauge<u32, AtomicU32>>,
 }
 
 /// Prometheus export metric type
@@ -77,10 +86,13 @@ impl PrometheusExporter {
     /// # Arguments
     ///
     /// * `labels` - Static labels to be added to all metrics
-    pub fn new(labels: Labels) -> Self {
+    ///
+    /// * `gc` - Garbage collector for prometheus metrics
+    pub fn new(labels: Labels, gc: Option<PromGC>) -> Self {
         Self {
             static_lables: labels,
-            ..Default::default()
+            metrics: Default::default(),
+            gc,
         }
     }
 
@@ -103,28 +115,28 @@ impl PrometheusExporter {
             state.registry.register(
                 "ebpf_cpu_usage",
                 "CPU Usage of bpf programs",
-                self.cpu_usage.clone(),
+                self.metrics.cpu_usage.clone(),
             );
         }
         if expoting_types.contains(&PromExportType::RunTime) {
             state.registry.register(
                 "ebpf_run_time",
                 "Time spent in the ebpf program starting from the first measurement (seconds)",
-                self.run_time.clone(),
+                self.metrics.run_time.clone(),
             );
         }
         if expoting_types.contains(&PromExportType::EventCount) {
             state.registry.register(
                 "ebpf_event_count",
                 "Number of times the ebpf program was run starting from the first measurement",
-                self.event_count.clone(),
+                self.metrics.event_count.clone(),
             );
         }
         if expoting_types.contains(&PromExportType::MapSize) {
             state.registry.register(
                 "ebpf_map_size",
                 "Current size of ebpf map",
-                self.map_size.clone(),
+                self.metrics.map_size.clone(),
             );
         }
 
@@ -142,6 +154,10 @@ impl PrometheusExporter {
             info!("Prometheus node exporter is running at port: {port}");
             axum::serve(listener, router).await
         });
+
+        if let Some(gc) = self.gc.as_ref() {
+            gc.start();
+        }
 
         Ok(())
     }
@@ -170,21 +186,39 @@ impl Exporter for PrometheusExporter {
             BpfStatsInfo::Cpu(stats) => {
                 labels.push(("ebpf_id".to_string(), data.id.to_string()));
                 labels.push(("ebpf_name".to_string(), data.name.to_string()));
-                self.cpu_usage
+                self.metrics
+                    .cpu_usage
                     .get_or_create(&labels)
                     .set(stats.exact_cpu_usage);
-                self.run_time
+                self.metrics
+                    .run_time
                     .get_or_create(&labels)
                     .set(stats.run_time.as_secs_f32());
-                self.event_count.get_or_create(&labels).set(stats.run_count);
+                self.metrics
+                    .event_count
+                    .get_or_create(&labels)
+                    .set(stats.run_count);
+                if let Some(gc) = self.gc.as_mut() {
+                    gc.add_exported_program(data.id, data.name);
+                }
             }
             BpfStatsInfo::Map(stats) => {
                 labels.push(("ebpf_map_id".to_string(), data.id.to_string()));
                 labels.push(("ebpf_map_name".to_string(), data.name.to_string()));
                 labels.push(("ebpf_map_max_size".to_string(), stats.max_size.to_string()));
-                self.map_size.get_or_create(&labels).set(stats.size);
+                self.metrics.map_size.get_or_create(&labels).set(stats.size);
+                if let Some(gc) = self.gc.as_mut() {
+                    gc.add_exported_map(data.id, data.name, stats.max_size);
+                }
             }
         }
+
+        if let Some(gc) = self.gc.as_mut()
+            && gc.collect_needed()
+        {
+            gc.collect(&mut self.metrics, &self.static_lables);
+        }
+
         Ok(())
     }
 }

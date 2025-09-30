@@ -98,6 +98,10 @@ pub struct PrometheusArgs {
     /// Prometheus export types
     #[arg(short, long, default_values_t = [PromExportType::RunTime, PromExportType::EventCount], value_delimiter = ',')]
     pub export_types: Vec<PromExportType>,
+
+    /// Prometheus garbage collector interval,set to 0s to disable
+    #[arg(long, value_parser = duration_parser, default_value = "30s")]
+    pub gc_period: std::time::Duration,
 }
 
 fn label_parser(s: &str) -> Result<Labels> {

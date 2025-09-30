@@ -1,6 +1,6 @@
 use crate::config::RunArgs;
 use crate::exporter::prometheus_exporter::PromExportType;
-use crate::exporter::{Exporter, file_exporter, prometheus_exporter};
+use crate::exporter::{Exporter, file_exporter, prometheus_exporter, prometheus_gc};
 use crate::meter::{self, BpfInfo, BpfRawStats, Meter};
 
 use std::cell::RefCell;
@@ -27,8 +27,13 @@ pub fn run(args: &RunArgs) -> Result<()> {
             let file_exporter = file_exporter::FileExporter::new(args.cpu_period, "prog", output_dir);
             &RefCell::new(file_exporter)
         } else {
+            let gc = if args.output_mode.prometheus.gc_period != std::time::Duration::ZERO {
+                Some(prometheus_gc::PromGC::new(args.output_mode.prometheus.gc_period))
+            } else {
+                None
+            };
             let mut prom_exporter = prometheus_exporter::PrometheusExporter::new(
-                args.output_mode.prometheus.labels.clone().unwrap_or_default(),
+                args.output_mode.prometheus.labels.clone().unwrap_or_default(), gc,
             );
             prom_exporter
                 .start_local_server(args.output_mode.prometheus.port, &args.output_mode.prometheus.export_types)

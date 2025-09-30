@@ -1,5 +1,6 @@
 pub mod file_exporter;
 pub mod prometheus_exporter;
+pub mod prometheus_gc;
 
 use anyhow::Result;
 
