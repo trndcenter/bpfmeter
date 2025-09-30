@@ -155,7 +155,7 @@ impl PrometheusExporter {
             axum::serve(listener, router).await
         });
 
-        if let Some(gc) = self.gc.as_ref() {
+        if let Some(gc) = self.gc.as_mut() {
             gc.start();
         }
 

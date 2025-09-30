@@ -5,6 +5,7 @@ use std::{
 };
 
 use aya::{maps::loaded_maps, programs::loaded_programs};
+use tokio::task::JoinHandle;
 
 use crate::exporter::prometheus_exporter::{EBPFMetrics, Labels};
 
@@ -13,6 +14,8 @@ use crate::exporter::prometheus_exporter::{EBPFMetrics, Labels};
 pub struct PromGC {
     /// Period of garbage collection
     period: Duration,
+    /// Handle to waiting task
+    waker_handle: Option<JoinHandle<()>>,
     /// Flag to indicate if garbage collection is needed
     collect_needed: Arc<AtomicBool>,
     /// Set of currently used maps
@@ -40,21 +43,27 @@ impl PromGC {
     pub fn new(period: Duration) -> Self {
         Self {
             period,
+            waker_handle: None,
             collect_needed: Arc::new(AtomicBool::new(false)),
-            ..Default::default()
+            used_maps: HashSet::new(),
+            used_progs: HashSet::new(),
         }
     }
 
     /// Start garbage collection
-    pub fn start(&self) {
+    pub fn start(&mut self) {
+        if self.waker_handle.is_some() {
+            return;
+        }
+
         let collect_needed = self.collect_needed.clone();
         let period: Duration = self.period;
-        tokio::spawn(async move {
+        self.waker_handle = Some(tokio::spawn(async move {
             loop {
                 tokio::time::sleep(period).await;
                 collect_needed.store(true, std::sync::atomic::Ordering::Relaxed);
             }
-        });
+        }));
     }
 
     /// Add map to currently used map which will not be garbage collected
@@ -140,6 +149,14 @@ impl PromGC {
             metrics.event_count.remove(&labels);
             labels.pop();
             labels.pop();
+        }
+    }
+}
+
+impl Drop for PromGC {
+    fn drop(&mut self) {
+        if let Some(handle) = self.waker_handle.take() {
+            handle.abort();
         }
     }
 }
