@@ -24,7 +24,7 @@ libc = "0.2"
 [dev-dependencies]
 reqwest = { version = "0.12.23", features = ["blocking"] }
 which = "8.0.0"
-ctor = "0.5.0"
+ctor = "0.6.0"
 
 [features]
 default = ["draw"]
