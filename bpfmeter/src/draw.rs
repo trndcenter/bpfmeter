@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     config::{DrawArgs, DrawType},
-    meter::cpu_meter::BpfCPUStatsInfo,
+    meter::{cpu_meter::BpfCPUStatsInfo, map_meter::BpfMapStatsInfo},
 };
 use anyhow::{Context, Result, bail};
 use humantime::format_rfc3339_seconds;
@@ -36,6 +36,7 @@ pub fn draw(args: &DrawArgs) -> Result<()> {
     let draw_func = match args.draw_type {
         DrawType::CPUUsage => draw_cpu_usage,
         DrawType::EventCount => draw_event_count,
+        DrawType::MapSize => draw_map_size,
     };
 
     if args.multiple {
@@ -185,6 +186,65 @@ fn draw_event_count(files: &[PathBuf], output_dir: &std::path::Path) -> Result<(
 
         title: "eBPF programs event count",
         y_desc: "Event count",
+        time_unit,
+        ..Default::default()
+    };
+
+    image_parameters.set_footer_title(files);
+
+    image_parameters.draw_image(file_readers_map, output_svg.as_path())
+}
+
+fn draw_map_size(files: &[PathBuf], output_dir: &std::path::Path) -> Result<()> {
+    let mut file_readers_map: HashMap<String, Vec<(u64, u32)>> = HashMap::new();
+    let (mut max_time, mut max_size) = (0u64, 0u32);
+
+    let (output_svg, factor, time_unit) =
+        get_parameters_from_filenames(files, output_dir, "map_size")?;
+
+    for file in files {
+        let map_size = csv::Reader::from_reader(BufReader::new(File::open(file)?))
+            .deserialize()
+            .filter_map(|r: std::result::Result<BpfMapStatsInfo, csv::Error>| r.ok())
+            .enumerate()
+            .map(|(idx, BpfMapStatsInfo { size, .. })| (idx as u64 * factor, size))
+            .collect::<Vec<(u64, u32)>>();
+        if map_size.is_empty() {
+            continue;
+        }
+        max_time = max_time.max(map_size.iter().map(|(time, _)| *time).max().unwrap_or(0));
+        max_size = max_size.max(
+            map_size
+                .iter()
+                .map(|(_, usage)| *usage)
+                .fold(0u32, |f1, f2| f1.max(f2)),
+        );
+        let bpf_program_name = file
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .rsplit_once("_")
+            .unwrap()
+            .0
+            .to_string();
+        file_readers_map.insert(bpf_program_name, map_size);
+    }
+
+    if file_readers_map.is_empty() {
+        bail!("No bpf data csv files found in {:?}", files);
+    }
+
+    // Calculate image shapes
+    let mut image_parameters = ImageParameters {
+        max_time,
+        max_y: max_size * 3 / 2,
+
+        time_step: (max_time / 20).max(1),
+        step_y: max_size / 10,
+
+        title: "eBPF map size",
+        y_desc: "Elements in map",
         time_unit,
         ..Default::default()
     };
