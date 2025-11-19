@@ -142,6 +142,7 @@ pub struct DrawArgs {
 pub enum DrawType {
     CPUUsage,
     EventCount,
+    MapSize,
 }
 
 fn check_dir(s: &str) -> Result<PathBuf> {
