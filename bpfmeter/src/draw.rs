@@ -1,4 +1,7 @@
-use std::{collections::HashMap, fs::File, io::BufReader, path::PathBuf, time::SystemTime};
+use std::{
+    collections::HashMap, fmt::Display, fs::File, io::BufReader, ops::AddAssign, path::PathBuf,
+    time::SystemTime,
+};
 
 use crate::{
     config::{DrawArgs, DrawType},
@@ -7,7 +10,10 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use humantime::format_rfc3339_seconds;
 use log::info;
-use plotters::prelude::*;
+use plotters::{
+    coord::ranged1d::{AsRangedCoord, ValueFormatter},
+    prelude::*,
+};
 
 const USAGE_MAX_TICKS: [f32; 6] = [1.0f32, 5.0f32, 10.0f32, 20.0f32, 50.0f32, 100.0f32];
 
@@ -97,96 +103,23 @@ fn draw_cpu_usage(files: &[PathBuf], output_dir: &std::path::Path) -> Result<()>
         .find(|&&x| x > max_usage_bound)
         .copied()
         .unwrap_or(100.0f32);
-    let usage_step = max_usage / 10.0; // 10 ticks on y axis
-    let time_step = (max_time / 20).max(1); // 20 ticks on x axis
 
-    let root = SVGBackend::new(&output_svg, (1920, 1080)).into_drawing_area();
-    root.fill(&WHITE)?;
+    let mut image_parameters = ImageParameters {
+        max_time,
+        max_y: max_usage,
 
-    // Title: 80, Body: 920, Footer: 80
-    let (title, body) = root.split_vertically(80);
-    let (body, footer) = body.split_vertically(920);
+        time_step: (max_time / 20).max(1),
+        step_y: max_usage / 10.0,
 
-    title.titled(
-        "eBPF programs CPU usage",
-        ("sans-serif", 50).into_font().color(&BLACK),
-    )?;
+        title: "eBPF programs CPU usage",
+        y_desc: "CPU usage, %",
+        time_unit,
+        ..Default::default()
+    };
 
-    footer.titled(
-        &format!(
-            "Data Sources {}...",
-            files
-                .iter()
-                .take(3)
-                .map(|x| x.display().to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        ("sans-serif", 10).into_font().color(&BLACK.mix(0.5)),
-    )?;
+    image_parameters.set_footer_title(files);
 
-    // Calculate avg, min and max usage
-    let mut overall_usage = Vec::new();
-    for (_, data) in file_readers_map.iter() {
-        if overall_usage.len() < data.len() {
-            overall_usage.resize(data.len(), 0.0f32);
-        }
-
-        overall_usage
-            .iter_mut()
-            .zip(data.iter())
-            .for_each(|(a, b)| {
-                *a += b.1;
-            });
-    }
-    let avg_overall_usage = overall_usage.iter().sum::<f32>() / overall_usage.len() as f32;
-    let min_overall_usage = *overall_usage
-        .iter()
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    let max_overall_usage = *overall_usage
-        .iter()
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-
-    let mut chart = ChartBuilder::on(&body)
-        .caption(
-            format!(
-                "Overall usage: Avg: {avg_overall_usage:.2}%, Min: {min_overall_usage:.2}%, Max: {max_overall_usage:.2}%"
-            ),
-            ("sans-serif", (3).percent_height()),
-        )
-        .set_label_area_size(LabelAreaPosition::Left, (8).percent())
-        .set_label_area_size(LabelAreaPosition::Bottom, (4).percent())
-        .margin((1).percent())
-        .build_cartesian_2d(
-            (0u64..max_time).step(time_step),
-            (0f32..max_usage).step(usage_step),
-        )?;
-
-    chart
-        .configure_mesh()
-        .x_desc(format!("Time ({time_unit})"))
-        .y_desc("CPU Usage %")
-        .draw()?;
-
-    for (idx, (bpf_program_name, data)) in file_readers_map.into_iter().enumerate() {
-        let color = Palette99::pick(idx).mix(0.9);
-        chart
-            .draw_series(LineSeries::new(data, color.stroke_width(3)))?
-            .label(bpf_program_name)
-            .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 10, y + 5)], color.filled()));
-    }
-
-    chart.configure_series_labels().border_style(BLACK).draw()?;
-
-    // To avoid the IO failure being ignored silently, we manually call the present function
-    root.present()
-        .with_context(|| format!("Unable to write result to file {}", output_svg.display()))?;
-
-    info!("Image saved to {}", output_svg.display());
-
-    Ok(())
+    image_parameters.draw_image(file_readers_map, output_svg.as_path())
 }
 
 fn draw_event_count(files: &[PathBuf], output_dir: &std::path::Path) -> Result<()> {
@@ -243,97 +176,168 @@ fn draw_event_count(files: &[PathBuf], output_dir: &std::path::Path) -> Result<(
     }
 
     // Calculate image shapes
-    let max_run_count = max_run_count * 3 / 2;
-    let run_count_step = max_run_count / 10; // 10 ticks on y axis
-    let time_step = (max_time / 20).max(1); // 20 ticks on x axis
+    let mut image_parameters = ImageParameters {
+        max_time,
+        max_y: max_run_count * 3 / 2,
 
-    let root = SVGBackend::new(&output_svg, (1920, 1080)).into_drawing_area();
-    root.fill(&WHITE)?;
+        time_step: (max_time / 20).max(1),
+        step_y: max_run_count / 10,
 
-    // Title: 80, Body: 920, Footer: 80
-    let (title, body) = root.split_vertically(80);
-    let (body, footer) = body.split_vertically(920);
+        title: "eBPF programs event count",
+        y_desc: "Event count",
+        time_unit,
+        ..Default::default()
+    };
 
-    title.titled(
-        "eBPF programs event count",
-        ("sans-serif", 50).into_font().color(&BLACK),
-    )?;
+    image_parameters.set_footer_title(files);
 
-    footer.titled(
-        &format!(
+    image_parameters.draw_image(file_readers_map, output_svg.as_path())
+}
+
+/// Struct representing the parameters of the image
+#[derive(Debug, Default)]
+struct ImageParameters<T> {
+    /// Max x axis value
+    max_time: u64,
+    /// Max y axis value
+    max_y: T,
+    /// Step on x axis
+    time_step: u64,
+    /// Step on y axis
+    step_y: T,
+    /// Title of the image
+    title: &'static str,
+    /// Title of the footer
+    footer_title: String,
+    /// Description of the y axis
+    y_desc: &'static str,
+    /// Time unit
+    time_unit: &'static str,
+}
+
+impl<T> ImageParameters<T> {
+    /// Set the footer title
+    ///
+    /// # Arguments
+    ///
+    /// * `files` - Vector of file paths with data sources
+    fn set_footer_title(&mut self, files: &[PathBuf]) {
+        self.footer_title = format!(
             "Data Sources {}...",
             files
                 .iter()
                 .take(3)
                 .map(|x| x.display().to_string())
                 .collect::<Vec<_>>()
-                .join(",")
-        ),
-        ("sans-serif", 10).into_font().color(&BLACK.mix(0.5)),
-    )?;
-
-    // Calculate avg, min and max number of events
-    let mut overall_usage = Vec::new();
-    for (_, data) in file_readers_map.iter() {
-        if overall_usage.len() < data.len() {
-            overall_usage.resize(data.len(), 0u64);
-        }
-
-        overall_usage
-            .iter_mut()
-            .zip(data.iter())
-            .for_each(|(a, b)| {
-                *a += b.1;
-            });
+                .join(", ")
+        );
     }
-    let avg_overall_usage = overall_usage.iter().sum::<u64>() / overall_usage.len() as u64;
-    let min_overall_usage = *overall_usage
-        .iter()
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    let max_overall_usage = *overall_usage
-        .iter()
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
 
-    let mut chart = ChartBuilder::on(&body)
-        .caption(
-            format!(
-                "Overall events: Avg: {avg_overall_usage:.2}, Min: {min_overall_usage:.2}, Max: {max_overall_usage:.2}"
-            ),
-            ("sans-serif", (3).percent_height()),
-        )
-        .set_label_area_size(LabelAreaPosition::Left, (8).percent())
-        .set_label_area_size(LabelAreaPosition::Bottom, (4).percent())
-        .margin((1).percent())
-        .build_cartesian_2d(
-            (0u64..max_time).step(time_step),
-            (0u64..max_run_count).step(run_count_step),
+    /// Draw the image
+    ///
+    /// # Arguments
+    ///
+    /// * `file_readers_map` - Map of ebpf program name to vector of (time, value) pairs
+    ///
+    /// * `output_svg` - Path to the output svg file
+    fn draw_image(
+        &self,
+        file_readers_map: HashMap<String, Vec<(u64, T)>>,
+        output_svg: &std::path::Path,
+    ) -> Result<()>
+    where
+        std::ops::Range<T>: AsRangedCoord<Value = T, CoordDescType: ValueFormatter<T>>,
+        for<'a> T: Display
+            + Default
+            + Copy
+            + PartialOrd
+            + AddAssign<T>
+            + std::iter::Sum<&'a T>
+            + num_traits::cast::FromPrimitive
+            + num_traits::Num
+            + num_traits::NumRef
+            + 'static,
+    {
+        let root = SVGBackend::new(&output_svg, (1920, 1080)).into_drawing_area();
+        root.fill(&WHITE)?;
+
+        // Title: 80, Body: 920, Footer: 80
+        let (title_box, body) = root.split_vertically(80);
+        let (body_box, footer) = body.split_vertically(920);
+
+        title_box.titled(self.title, ("sans-serif", 50).into_font().color(&BLACK))?;
+
+        footer.titled(
+            self.footer_title.as_str(),
+            ("sans-serif", 10).into_font().color(&BLACK.mix(0.5)),
         )?;
 
-    chart
-        .configure_mesh()
-        .x_desc(format!("Time ({time_unit})"))
-        .y_desc("Event count")
-        .draw()?;
+        // Calculate avg, min and max on y axisx
+        let mut overall_measure = Vec::new();
+        for (_, data) in file_readers_map.iter() {
+            if overall_measure.len() < data.len() {
+                overall_measure.resize(data.len(), T::default());
+            }
 
-    for (idx, (bpf_program_name, data)) in file_readers_map.into_iter().enumerate() {
-        let color = Palette99::pick(idx).mix(0.9);
+            overall_measure
+                .iter_mut()
+                .zip(data.iter())
+                .for_each(|(a, b)| {
+                    *a += b.1;
+                });
+        }
+        let avg_overall_usage =
+            overall_measure.iter().sum::<T>() / T::from_usize(overall_measure.len()).unwrap();
+        let min_overall_usage = *overall_measure
+            .iter()
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+        let max_overall_usage = *overall_measure
+            .iter()
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+
+        let mut chart = ChartBuilder::on(&body_box)
+            .caption(
+                format!(
+                    "Overall events: Avg: {avg_overall_usage:.2}, Min: {min_overall_usage:.2}, Max: {max_overall_usage:.2}"
+                ),
+                ("sans-serif", (3).percent_height()),
+            )
+            .set_label_area_size(LabelAreaPosition::Left, (8).percent())
+            .set_label_area_size(LabelAreaPosition::Bottom, (4).percent())
+            .margin((1).percent())
+            .build_cartesian_2d(
+                (0u64..self.max_time).step(self.time_step),
+                (T::default()..self.max_y).step(&self.step_y),
+            )?;
+
         chart
-            .draw_series(LineSeries::new(data, color.stroke_width(3)))?
-            .label(bpf_program_name)
-            .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 10, y + 5)], color.filled()));
+            .configure_mesh()
+            .x_desc(format!("Time ({})", self.time_unit))
+            .y_desc(self.y_desc)
+            .draw()?;
+
+        for (idx, (bpf_program_name, data)) in file_readers_map.into_iter().enumerate() {
+            let color = Palette99::pick(idx).mix(0.9);
+            chart
+                .draw_series(LineSeries::new(data, color.stroke_width(3)))?
+                .label(bpf_program_name)
+                .legend(move |(x, y)| {
+                    Rectangle::new([(x, y - 5), (x + 10, y + 5)], color.filled())
+                });
+        }
+
+        chart.configure_series_labels().border_style(BLACK).draw()?;
+
+        // To avoid the IO failure being ignored silently, we manually call the present function
+        root.present()
+            .with_context(|| format!("Unable to write result to file {}", output_svg.display()))?;
+
+        info!("Image saved to {}", output_svg.display());
+
+        Ok(())
     }
-
-    chart.configure_series_labels().border_style(BLACK).draw()?;
-
-    // To avoid the IO failure being ignored silently, we manually call the present function
-    root.present()
-        .with_context(|| format!("Unable to write result to file {}", output_svg.display()))?;
-
-    info!("Image saved to {}", output_svg.display());
-
-    Ok(())
 }
 
 /// Get the output svg file name, multiply factor and the time unit from the first file

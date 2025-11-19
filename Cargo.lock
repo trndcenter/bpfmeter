@@ -219,6 +219,7 @@ dependencies = [
  "humantime",
  "libc",
  "log",
+ "num-traits",
  "plotters",
  "prometheus-client",
  "reqwest",
