@@ -48,7 +48,7 @@ $ docker pull ghcr.io/trndcenter/bpfmeter:v0.1.0
 and run the agent:
 
 ```shell
-$ docker run --rm -it --cap-add=CAP_SYS_ADMIN ghcr.io/trndcenter/bpfmeter:v0.1.0 run -o outdir/
+$ docker run --rm -it --cap-add=CAP_SYS_ADMIN -v ${PWD}/outdir:/outdir ghcr.io/trndcenter/bpfmeter:v0.1.0 run -o /outdir
 ```
 
 ### Kubernetes installation
