@@ -1,0 +1,41 @@
+services:
+  bpf-exporter:
+    image: ghcr.io/trndcenter/bpfmeter:v0.1.1
+    command: run --cpu-period=5s --enable-maps --export-types=run-time,event-count,map-size  --labels system=bpfmeter -P 9100
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    depends_on:
+      - bpf-exporter
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: secure_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  grafana_data:
