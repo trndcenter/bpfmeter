@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: bpfmeter
-          image: ghcr.io/trndcenter/bpfmeter:v0.1.0
+          image: ghcr.io/trndcenter/bpfmeter:v0.1.1
           imagePullPolicy: IfNotPresent
           args:
             - "run"
