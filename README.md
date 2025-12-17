@@ -4,7 +4,17 @@ Bpfmeter is a tool for measuring the performance of eBPF programs. It enables CP
 
 ## Quick start
 
-### Run locally
+### Docker compose
+
+You can use the provided [example](./examples/prometheus-grafana/docker-compose.yml) to start grafana, prometheus, and bpfmeter locally:
+
+```shell
+cd examples/prometheus-grafana && docker compose up -d
+```
+
+Grafana dashboard with all supported metrics will be available at http://localhost:3000.
+
+### Run binary
 
 To run the agent:
 
@@ -42,13 +52,13 @@ The resulting plot(s) will be saved in the `svgdir` directory. Example:
 You can deploy bpfmeter as a container. Choose the desired version and pull the image:
 
 ```shell
-$ docker pull ghcr.io/trndcenter/bpfmeter:v0.1.0
+$ docker pull ghcr.io/trndcenter/bpfmeter:v0.1.1
 ```
 
 and run the agent:
 
 ```shell
-$ docker run --rm -it --cap-add=CAP_SYS_ADMIN -v ${PWD}/outdir:/outdir ghcr.io/trndcenter/bpfmeter:v0.1.0 run -o /outdir
+$ docker run --rm -it --cap-add=CAP_SYS_ADMIN -v ${PWD}/outdir:/outdir ghcr.io/trndcenter/bpfmeter:v0.1.1 run -o /outdir
 ```
 
 ### Kubernetes installation
@@ -66,7 +76,7 @@ For advanced Kubernetes manifest management, refer to the [installation document
 The agent implements a Prometheus client interface to export metrics in OpenMetrics format to monitoring systems. If the agent was built using the container image, it can be launched as follows:
 
 ```shell
-$ docker run --rm -it -p 9100:9100 --cap-add=CAP_SYS_ADMIN ghcr.io/trndcenter/bpfmeter:v0.1.0 run --labels system=bpfmeter -P 9100
+$ docker run --rm -it -p 9100:9100 --cap-add=CAP_SYS_ADMIN ghcr.io/trndcenter/bpfmeter:v0.1.1 run --labels system=bpfmeter -P 9100
 ```
 
 If no output directory is specified, the agent automatically starts the Prometheus client on the given port. Along with CPU usage metrics, the labels provided in the command-line arguments will be sent.
