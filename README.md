@@ -14,6 +14,8 @@ cd examples/prometheus-grafana && docker compose up -d
 
 Grafana dashboard with all supported metrics will be available at http://localhost:3000.
 
+![plot](docs/images/grafana_dashboard.png)
+
 ### Run binary
 
 To run the agent:
