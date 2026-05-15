@@ -334,7 +334,7 @@ impl<T> ImageParameters<T> {
 
         // Calculate avg, min and max on y axisx
         let mut overall_measure = Vec::new();
-        for (_, data) in file_readers_map.iter() {
+        for data in file_readers_map.values() {
             if overall_measure.len() < data.len() {
                 overall_measure.resize(data.len(), T::default());
             }
