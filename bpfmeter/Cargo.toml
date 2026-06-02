@@ -25,7 +25,7 @@ num-traits = "0.2.19"
 [dev-dependencies]
 reqwest = { version = "0.13.3", features = ["blocking"] }
 which = "8.0.2"
-ctor = "0.10.1"
+ctor = "1.0.7"
 
 [features]
 default = ["draw"]
