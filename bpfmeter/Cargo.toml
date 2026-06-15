@@ -18,7 +18,7 @@ serde_with = "3.20"
 clap = { version = "4.6", features = ["derive"] }
 plotters = {version="0.3", optional = true}
 axum = "0.8"
-prometheus-client = "0.24"
+prometheus-client = "0.25"
 libc = "0.2"
 num-traits = "0.2.19"
 
