@@ -5,7 +5,7 @@ edition = "2024"
 publish = ["rust-craft"]
 
 [dependencies]
-aya = "0.13"
+aya = "0.14"
 aya-obj = "0.3"
 anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
